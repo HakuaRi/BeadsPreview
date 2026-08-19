@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>拼豆图纸生成器</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="app-title">
+      <h1>拼豆图纸生成器</h1>
+      <nav class="header-links">
+        <a class="header-btn" href="https://lab.organxy.com">返回主页</a>
+        <a class="header-btn" href="https://github.com/HakuaRi" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="layout">
+
+    <!-- ============ 左侧控制栏 ============ -->
+    <aside class="sidebar">
+
+      <section class="card">
+        <h2>导入图片</h2>
+        <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="选择或拖拽图片">
+          <p class="dz-main">点击选择或拖拽图片到此处</p>
+          <p class="dz-hint">支持 PNG / JPG，透明像素保留 alpha，不做白底填充</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" hidden>
+        <div id="imageInfo" class="image-info hidden"></div>
+        <p class="hint warn-hint">警示：不推荐使用手机进行编辑模式（手指精度太低了）；不推荐使用非像素画原底图的文件（照片、平滑图会产生噪点与失真）</p>
+      </section>
+
+      <section class="card">
+        <h2>厂家色板</h2>
+        <select id="manufacturer" disabled>
+          <option>加载中…</option>
+        </select>
+        <div id="palette" class="palette" aria-label="色板预览"></div>
+        <p class="hint">选择厂家后立即按该色板重新拟合</p>
+      </section>
+
+      <section class="card">
+        <h2>像素处理</h2>
+
+        <div class="field">
+          <label for="alphaRange">透明阈值 <output id="alphaOut" class="val">128</output></label>
+          <input type="range" id="alphaRange" min="0" max="255" step="1" value="128">
+          <p class="hint">alpha 低于该值视为空位（不放置拼豆）</p>
+        </div>
+
+        <div class="field">
+          <label class="check">
+            <input type="checkbox" id="removeWhite">
+            <span>白色背景视为空位</span>
+          </label>
+          <p class="hint">不勾选：白色像素按白豆处理；勾选：RGB 均 ≥ 阈值视为空位（用于压平的白底图）</p>
+        </div>
+
+        <div class="field">
+          <label for="whiteRange">白底阈值 <output id="whiteOut" class="val">240</output></label>
+          <input type="range" id="whiteRange" min="200" max="254" step="1" value="240">
+          <p class="hint">RGB 三通道均 ≥ 该值视为空位</p>
+        </div>
+
+        <div class="field">
+          <span class="label">缩放</span>
+          <label class="radio"><input type="radio" name="scale" value="one" checked><span>1:1（1 像素 = 1 豆）</span></label>
+          <label class="radio"><input type="radio" name="scale" value="max"><span>最大边长</span></label>
+          <div id="maxDimRow" class="inline hidden">
+            <input type="number" id="maxDim" min="4" max="1024" step="1" value="64"> px
+          </div>
+          <div class="chips">
+            <button type="button" class="chip" data-dim="32">32</button>
+            <button type="button" class="chip" data-dim="48">48</button>
+            <button type="button" class="chip" data-dim="64">64</button>
+            <button type="button" class="chip" data-dim="96">96</button>
+            <button type="button" class="chip" data-dim="128">128</button>
+          </div>
+          <p class="hint">降采样使用最近邻取点，像素图请勿平滑</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>图纸视图</h2>
+        <label class="check"><input type="checkbox" id="gridLines" checked><span>显示网格线（每 4 格加粗）</span></label>
+        <label class="check"><input type="checkbox" id="showCodes"><span>格子内显示厂家色号</span></label>
+      </section>
+
+      <section class="card">
+        <h2>编辑</h2>
+        <label class="check"><input type="checkbox" id="editToggle"><span>开启编辑</span></label>
+        <div id="editTools" class="edit-tools hidden">
+          <div class="tool-row">
+            <button type="button" class="tool-btn active" data-tool="brush">画笔</button>
+            <button type="button" class="tool-btn" data-tool="eraser">橡皮</button>
+            <button type="button" class="tool-btn" data-tool="bucket">油漆桶</button>
+          </div>
+          <div class="tool-row">
+            <button type="button" id="btnUndo" class="btn" disabled>撤销</button>
+            <button type="button" id="btnRedo" class="btn" disabled>重做</button>
+          </div>
+          <p class="hint">开启后点选色板颜色，在画布上绘制。保存的 PNG 为编辑后的结果。调整其他参数会重新拟合，编辑结果将丢失</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>导出</h2>
+        <div class="btn-group">
+          <button id="btnPng" class="btn primary" type="button" disabled>导出 PNG 图纸</button>
+          <button id="btnCsv" class="btn" type="button" disabled>导出 CSV 清单</button>
+          <button id="btnJson" class="btn" type="button" disabled>导出 JSON 图纸</button>
+        </div>
+      </section>
+
+      <div id="errorBanner" class="error-banner hidden"></div>
+    </aside>
+
+    <!-- ============ 右侧主区 ============ -->
+    <main class="main">
+
+      <div id="emptyState" class="empty-state">
+        <p class="es-main">还没有图纸</p>
+        <p class="es-sub">在左侧导入一张像素图，选择厂家色板后即可生成拼豆图纸与色号清单。</p>
+      </div>
+
+      <section id="result" class="hidden">
+        <div class="card pattern-card">
+          <div class="pattern-head">
+            <h2>画板图纸</h2>
+            <span id="stats" class="stats"></span>
+          </div>
+          <div class="canvas-wrap" id="canvasWrap">
+            <canvas id="patternCanvas"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="pattern-head">
+            <h2>色号清单</h2>
+            <span id="legendTotal" class="stats"></span>
+          </div>
+          <div id="legendWrap" class="legend-wrap legend-cards"></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="app-footer">
+    <p>色板数据来自 <a href="https://git.xiongxiao.me/abearxiong/get-colors-from-beans" target="_blank" rel="noopener">abearxiong/get-colors-from-beans</a>，感谢作者分享</p>
+    <p class="footer-note">本工具仅支持简单拟合处理，无法使用 AIGC 功能及其他风格化处理。编辑功能仅供微小颜色或细节调整。如有高级编辑需要，请寻找其他工具或像素画编辑器。</p>
+  </footer>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
